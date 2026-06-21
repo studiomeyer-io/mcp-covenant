@@ -1,0 +1,43 @@
+[package]
+name = "mcp-covenant"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.86"
+license = "MIT"
+authors = ["StudioMeyer <hello@studiomeyer.io>"]
+description = "Contract & breaking-change detector for Model Context Protocol servers. Snapshot your tools/resources/prompts into a lockfile, diff in CI, fail on breaking changes. semver for MCP interfaces."
+repository = "https://github.com/studiomeyer-io/mcp-covenant"
+homepage = "https://github.com/studiomeyer-io/mcp-covenant"
+readme = "README.md"
+keywords = ["mcp", "model-context-protocol", "contract-testing", "semver", "ci"]
+categories = ["command-line-utilities", "development-tools::testing"]
+
+[lib]
+name = "mcp_covenant"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mcp-covenant"
+path = "src/main.rs"
+
+[features]
+default = ["http"]
+# Streamable-HTTP transport. Off by default-features=false for a leaner stdio-only build.
+http = ["dep:reqwest"]
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "sync", "time"] }
+
+[profile.release]
+strip = true
+lto = "thin"
+opt-level = 3

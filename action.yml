@@ -1,0 +1,55 @@
+name: "mcp-covenant check"
+description: "Fail the build when an MCP server's interface has a breaking change."
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  command:
+    description: 'stdio server command to launch, e.g. "node dist/server.js". Mutually exclusive with `http`.'
+    required: false
+    default: ""
+  http:
+    description: "Streamable HTTP MCP endpoint URL. Mutually exclusive with `command`."
+    required: false
+    default: ""
+  baseline:
+    description: "Path to the committed lockfile to diff against."
+    required: false
+    default: "mcp-covenant.lock"
+  fail-on:
+    description: "Severity that fails the job: breaking | minor | patch | never."
+    required: false
+    default: "breaking"
+  format:
+    description: "Output format: human | sarif | json."
+    required: false
+    default: "human"
+  version:
+    description: "Version of mcp-covenant to install from crates.io."
+    required: false
+    default: "0.1.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Install mcp-covenant
+      shell: bash
+      run: cargo install mcp-covenant --version "${{ inputs.version }}" --locked
+    - name: Check interface compatibility
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${{ inputs.http }}" ]; then
+          mcp-covenant check \
+            --baseline "${{ inputs.baseline }}" \
+            --fail-on "${{ inputs.fail-on }}" \
+            --format "${{ inputs.format }}" \
+            --http "${{ inputs.http }}"
+        else
+          mcp-covenant check \
+            --baseline "${{ inputs.baseline }}" \
+            --fail-on "${{ inputs.fail-on }}" \
+            --format "${{ inputs.format }}" \
+            -- ${{ inputs.command }}
+        fi
