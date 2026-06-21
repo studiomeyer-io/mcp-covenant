@@ -46,7 +46,7 @@ It's also direction-aware, which is the part most drift tools get wrong (see bel
 
 > Companion to [`mcp-armor`](https://github.com/studiomeyer-io/mcp-armor) (runtime defense)
 > and [`mcp-gauntlet`](https://github.com/studiomeyer-io/mcp-gauntlet) (pre-deploy fuzz +
-> load). `mcp-covenant` is the **interface-stability** leg of the trio.
+> load). `mcp-covenant` is the **interface-stability** leg; [`mcp-herald`](https://github.com/studiomeyer-io/mcp-herald) (spec migration) and [`mcp-passport`](https://github.com/studiomeyer-io/mcp-passport) (registry publish gate) complete the stack.
 
 ---
 
