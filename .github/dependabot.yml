@@ -36,6 +36,10 @@ updates:
       include: "scope"
     labels:
       - "ci"
+    ignore:
+      # dtolnay/rust-toolchain's version tag is the *Rust toolchain* we pin (our MSRV),
+      # not the action's release — never auto-bump it.
+      - dependency-name: "dtolnay/rust-toolchain"
     groups:
       actions:
         patterns:
