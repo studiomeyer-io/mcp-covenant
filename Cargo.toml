@@ -9,7 +9,7 @@ description = "Contract & breaking-change detector for Model Context Protocol se
 repository = "https://github.com/studiomeyer-io/mcp-covenant"
 homepage = "https://github.com/studiomeyer-io/mcp-covenant"
 readme = "README.md"
-keywords = ["mcp", "model-context-protocol", "contract-testing", "semver", "ci"]
+keywords = ["mcp", "model-context", "contract-testing", "semver", "ci"]
 categories = ["command-line-utilities", "development-tools::testing"]
 
 [lib]
