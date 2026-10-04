@@ -153,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: studiomeyer-io/mcp-covenant@v0.1.0
+      - uses: studiomeyer-io/mcp-covenant@v0.1.1
         with:
           command: "node dist/server.js"   # or: http: https://my-server/mcp
           baseline: mcp-covenant.lock
@@ -185,7 +185,7 @@ so a noisy diff *is* the signal.
 
 ```jsonc
 {
-  "covenant_version": "0.1.0",
+  "covenant_version": "0.1.1",
   "captured_at_unix": 1750000000,
   "server": { "name": "demo", "version": "1.0.0", "protocolVersion": "2025-11-25" },
   "surface": {

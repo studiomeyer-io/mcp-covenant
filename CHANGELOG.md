@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-05
+
 ### Fixed
 
 - `check` no longer reports "no changes" when one side of a schema omits `properties`
@@ -41,5 +43,6 @@ Initial release.
   stdio-only build with `--no-default-features`.
 - A reusable composite GitHub Action (`action.yml`).
 
-[Unreleased]: https://github.com/studiomeyer-io/mcp-covenant/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/studiomeyer-io/mcp-covenant/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/studiomeyer-io/mcp-covenant/releases/tag/v0.1.1
 [0.1.0]: https://github.com/studiomeyer-io/mcp-covenant/releases/tag/v0.1.0
