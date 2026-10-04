@@ -127,10 +127,14 @@ depending on direction, and `mcp-covenant` models both.
 | type narrowed (e.g. `["string","number"]` → `string`) | **breaking** | minor |
 | enum value added | minor (accepts more) | **breaking** (unknown value) |
 | enum value removed | **breaking** (rejects it) | minor |
+| array gains an `items` schema | **breaking** (elements now constrained) | minor |
+| array drops its `items` schema | minor | **breaking** (elements now unconstrained) |
 | `additionalProperties: true → false` | **breaking** | — |
 | description / title changed | patch | patch |
 
-Nested object properties and array `items` are diffed recursively. The overall result is the
+Nested object properties and array `items` are diffed recursively. A keyword that is absent
+on one side is compared as empty: a schema without `properties` declares no fields, and
+`required` counts even for a field the schema never declares. The overall result is the
 most severe change found, which maps to the semver bump you owe your users.
 
 ---
