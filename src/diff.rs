@@ -488,100 +488,173 @@ fn diff_schema(path: &str, old: &Value, new: &Value, dir: Dir, r: &mut DiffRepor
 
     // object properties + required
     if let (Some(oo), Some(no)) = (obj(old), obj(new)) {
-        let old_props = oo.get("properties").and_then(|v| v.as_object());
-        let new_props = no.get("properties").and_then(|v| v.as_object());
-        if let (Some(op), Some(np)) = (old_props, new_props) {
-            let old_req = required_set(old);
-            let new_req = required_set(new);
+        // An absent `properties` keyword declares no properties, so it is compared as an
+        // empty map. Requiring the keyword on both sides skipped the whole comparison and
+        // reported a new required field as "no change".
+        let empty = Map::new();
+        let op = oo
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .unwrap_or(&empty);
+        let np = no
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .unwrap_or(&empty);
+        let old_req = required_set(old);
+        let new_req = required_set(new);
 
-            for (name, oschema) in op {
-                let ppath = format!("{path}.properties.{name}");
-                match np.get(name) {
-                    None => {
-                        let was_required = old_req.contains(name);
-                        let sev = match dir {
-                            // Output: a removed field is gone for the consumer → breaking.
-                            Dir::Output => Severity::Breaking,
-                            // Input: a removed required field breaks the contract; an
-                            // optional one is a relaxation.
-                            Dir::Input if was_required => Severity::Breaking,
-                            Dir::Input => Severity::Minor,
-                        };
-                        r.push(
-                            sev,
-                            "schema.property.removed",
-                            ppath,
-                            format!(
-                                "{} property removed",
-                                if was_required { "required" } else { "optional" }
-                            ),
-                        );
-                    }
-                    Some(nschema) => {
-                        // Required transition for a property present on both sides.
-                        let was_req = old_req.contains(name);
-                        let now_req = new_req.contains(name);
-                        if !was_req && now_req {
-                            r.push(
-                                match dir {
-                                    Dir::Input => Severity::Breaking,
-                                    Dir::Output => Severity::Minor,
-                                },
-                                "schema.property.required.added",
-                                ppath.clone(),
-                                "property became required".into(),
-                            );
-                        } else if was_req && !now_req {
-                            r.push(
-                                match dir {
-                                    Dir::Input => Severity::Minor,
-                                    Dir::Output => Severity::Breaking,
-                                },
-                                "schema.property.required.relaxed",
-                                ppath.clone(),
-                                "property is no longer required".into(),
-                            );
-                        }
-                        diff_schema(&ppath, oschema, nschema, dir, r);
-                    }
-                }
-            }
-            for name in np.keys() {
-                if !op.contains_key(name) {
-                    let now_req = new_req.contains(name);
-                    let ppath = format!("{path}.properties.{name}");
+        for (name, oschema) in op {
+            let ppath = format!("{path}.properties.{name}");
+            match np.get(name) {
+                None => {
+                    let was_required = old_req.contains(name);
                     let sev = match dir {
-                        // Input: a new required field breaks existing callers.
-                        Dir::Input if now_req => Severity::Breaking,
-                        // Output additions and optional input additions are additive.
-                        _ => Severity::Minor,
-                    };
-                    let code = if dir == Dir::Input && now_req {
-                        "schema.property.required.added"
-                    } else {
-                        "schema.property.added"
+                        // Output: a removed field is gone for the consumer → breaking.
+                        Dir::Output => Severity::Breaking,
+                        // Input: a removed required field breaks the contract; an
+                        // optional one is a relaxation.
+                        Dir::Input if was_required => Severity::Breaking,
+                        Dir::Input => Severity::Minor,
                     };
                     r.push(
                         sev,
-                        code,
+                        "schema.property.removed",
                         ppath,
                         format!(
-                            "new {} property",
-                            if now_req { "required" } else { "optional" }
+                            "{} property removed",
+                            if was_required { "required" } else { "optional" }
                         ),
                     );
                 }
+                Some(nschema) => {
+                    // Required transition for a property present on both sides.
+                    let was_req = old_req.contains(name);
+                    let now_req = new_req.contains(name);
+                    if !was_req && now_req {
+                        r.push(
+                            match dir {
+                                Dir::Input => Severity::Breaking,
+                                Dir::Output => Severity::Minor,
+                            },
+                            "schema.property.required.added",
+                            ppath.clone(),
+                            "property became required".into(),
+                        );
+                    } else if was_req && !now_req {
+                        r.push(
+                            match dir {
+                                Dir::Input => Severity::Minor,
+                                Dir::Output => Severity::Breaking,
+                            },
+                            "schema.property.required.relaxed",
+                            ppath.clone(),
+                            "property is no longer required".into(),
+                        );
+                    }
+                    diff_schema(&ppath, oschema, nschema, dir, r);
+                }
+            }
+        }
+        for name in np.keys() {
+            if !op.contains_key(name) {
+                let now_req = new_req.contains(name);
+                // `required` may name a property the old schema never declared. Only a
+                // requirement the old schema did not already carry is new for callers.
+                let newly_req = now_req && !old_req.contains(name);
+                let ppath = format!("{path}.properties.{name}");
+                let sev = match dir {
+                    // Input: a new required field breaks existing callers.
+                    Dir::Input if newly_req => Severity::Breaking,
+                    // Output additions and optional input additions are additive.
+                    _ => Severity::Minor,
+                };
+                let code = if dir == Dir::Input && newly_req {
+                    "schema.property.required.added"
+                } else {
+                    "schema.property.added"
+                };
+                let detail = if dir == Dir::Input && now_req && !newly_req {
+                    "required property is now declared".to_string()
+                } else {
+                    format!(
+                        "new {} property",
+                        if now_req { "required" } else { "optional" }
+                    )
+                };
+                r.push(sev, code, ppath, detail);
             }
         }
 
-        // array items (single-schema form)
-        if let (Some(oi), Some(ni)) = (
-            oo.get("items").filter(|v| v.is_object()),
-            no.get("items").filter(|v| v.is_object()),
-        ) {
-            diff_schema(&format!("{path}.items"), oi, ni, dir, r);
+        // `required` can name a property that the same schema does not declare. Those
+        // transitions never reach the per-property loops above.
+        for name in new_req.difference(&old_req) {
+            if !np.contains_key(name) {
+                r.push(
+                    match dir {
+                        Dir::Input => Severity::Breaking,
+                        Dir::Output => Severity::Minor,
+                    },
+                    "schema.property.required.added",
+                    format!("{path}.properties.{name}"),
+                    "property became required".into(),
+                );
+            }
+        }
+        for name in old_req.difference(&new_req) {
+            if !op.contains_key(name) {
+                r.push(
+                    match dir {
+                        Dir::Input => Severity::Minor,
+                        Dir::Output => Severity::Breaking,
+                    },
+                    "schema.property.required.relaxed",
+                    format!("{path}.properties.{name}"),
+                    "property is no longer required".into(),
+                );
+            }
+        }
+
+        // array items (single-schema form). Presence matters as much as content: an array
+        // that gains an `items` schema narrows what it may carry, one that drops it widens it.
+        match (items_schema(oo), items_schema(no)) {
+            (Some(oi), Some(ni)) => diff_schema(&format!("{path}.items"), oi, ni, dir, r),
+            (None, Some(_)) if items_unconstrained(oo) => r.push(
+                match dir {
+                    Dir::Input => Severity::Breaking,
+                    Dir::Output => Severity::Minor,
+                },
+                "schema.items.added",
+                format!("{path}.items"),
+                "items schema added (elements are now constrained)".into(),
+            ),
+            (Some(_), None) if items_unconstrained(no) => r.push(
+                match dir {
+                    Dir::Input => Severity::Minor,
+                    Dir::Output => Severity::Breaking,
+                },
+                "schema.items.removed",
+                format!("{path}.items"),
+                "items schema removed (elements are now unconstrained)".into(),
+            ),
+            _ => {}
         }
     }
+}
+
+/// The single-schema form of `items`, when it constrains anything. An empty schema accepts
+/// every element, exactly like an absent keyword.
+fn items_schema(schema: &Map<String, Value>) -> Option<&Value> {
+    schema
+        .get("items")
+        .filter(|v| v.as_object().is_some_and(|m| !m.is_empty()))
+}
+
+/// True when `items` is absent or the empty schema, so elements are unconstrained. The tuple
+/// (array) and boolean forms are neither absent nor modelled, they return false.
+fn items_unconstrained(schema: &Map<String, Value>) -> bool {
+    schema
+        .get("items")
+        .is_none_or(|v| v.as_object().is_some_and(|m| m.is_empty()))
 }
 
 #[cfg(test)]
@@ -608,6 +681,53 @@ mod tests {
         let r = diff_surface(&s, &s);
         assert!(r.changes.is_empty());
         assert_eq!(r.bump(), None);
+    }
+
+    #[test]
+    fn new_required_property_is_breaking_when_baseline_omits_properties() {
+        // Input direction: an absent `properties` keyword declares no properties, so `{}`
+        // satisfied the old schema and fails the new one.
+        let old = surface(vec![tool("a", json!({"type": "object"}))]);
+        let new = surface(vec![tool(
+            "a",
+            obj_schema(json!({"p": {"type": "string"}}), json!(["p"])),
+        )]);
+        let r = diff_surface(&old, &new);
+        assert_eq!(r.bump(), Some(Severity::Breaking));
+        assert_eq!(r.changes[0].code, "schema.property.required.added");
+    }
+
+    #[test]
+    fn dropped_properties_report_the_removed_required_field() {
+        // Input direction, the mirror of the case above: a required field is gone.
+        let old = surface(vec![tool(
+            "a",
+            obj_schema(json!({"p": {"type": "string"}}), json!(["p"])),
+        )]);
+        let new = surface(vec![tool("a", json!({"type": "object"}))]);
+        let r = diff_surface(&old, &new);
+        assert_eq!(r.bump(), Some(Severity::Breaking));
+        assert_eq!(r.changes[0].code, "schema.property.removed");
+    }
+
+    #[test]
+    fn items_schema_added_to_input_array_is_breaking() {
+        // Input direction: elements that were accepted before may now be rejected. On an
+        // output schema the same change is a stronger guarantee (minor).
+        let old = surface(vec![tool(
+            "a",
+            obj_schema(json!({"tags": {"type": "array"}}), json!([])),
+        )]);
+        let new = surface(vec![tool(
+            "a",
+            obj_schema(
+                json!({"tags": {"type": "array", "items": {"type": "string"}}}),
+                json!([]),
+            ),
+        )]);
+        let r = diff_surface(&old, &new);
+        assert_eq!(r.bump(), Some(Severity::Breaking));
+        assert_eq!(r.changes[0].code, "schema.items.added");
     }
 
     #[test]
